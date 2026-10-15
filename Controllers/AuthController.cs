@@ -30,14 +30,23 @@ namespace Api_proj.Controllers
                 return BadRequest("Email is already registered.");
             }
 
+            // Look up the role in the database using the mandatory string input
+            var role = await _context.Roles
+                .FirstOrDefaultAsync(r => r.RoleName.ToLower() == dto.RoleName.ToLower());
+
+            if (role == null)
+            {
+                return BadRequest("Invalid or missing role specified. You must provide a valid 'RoleName' such as 'Organiser' or 'Participant'.");
+            }
+
             var user = new User
             {
                 Username = dto.Username,
                 Email = dto.Email,
-                RoleId = dto.RoleId
+                RoleId = role.RoleId // Dynamically maps the string name to the database RoleId
             };
 
-            // Securely hash the password[cite: 2]
+            // Securely hash the password
             user.PasswordHash = _passwordHasher.HashPassword(user, dto.Password);
 
             _context.Users.Add(user);
@@ -58,14 +67,12 @@ namespace Api_proj.Controllers
                 return Unauthorized("Invalid email or password.");
             }
 
-            // Verify password hash
             var verificationResult = _passwordHasher.VerifyHashedPassword(user, user.PasswordHash, dto.Password);
             if (verificationResult == PasswordVerificationResult.Failed)
             {
                 return Unauthorized("Invalid email or password.");
             }
 
-            // Create user claims for session management[cite: 2]
             var claims = new List<Claim>
             {
                 new Claim(ClaimTypes.NameIdentifier, user.UserId.ToString()),
