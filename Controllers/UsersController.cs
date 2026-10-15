@@ -19,14 +19,14 @@ namespace Api_proj.Controllers
             _context = context;
         }
 
-        // GET: api/users/profile (View own profile)
+        // GET: api/users/profile
         [HttpGet("profile")]
         public async Task<ActionResult<User>> GetMyProfile()
         {
             var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrEmpty(userIdString) || !int.TryParse(userIdString, out var userId))
             {
-                return Unauthorized("Invalid token or user ID.");
+                return Unauthorized();
             }
 
             var user = await _context.Users
@@ -35,29 +35,28 @@ namespace Api_proj.Controllers
 
             if (user == null)
             {
-                return NotFound("User profile not found.");
+                return NotFound();
             }
 
             return user;
         }
 
-        // PUT: api/users/profile (Update own profile)
+        // PUT: api/users/profile
         [HttpPut("profile")]
         public async Task<IActionResult> UpdateMyProfile(User updatedUserDto)
         {
             var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrEmpty(userIdString) || !int.TryParse(userIdString, out var userId))
             {
-                return Unauthorized("Invalid token or user ID.");
+                return Unauthorized();
             }
 
             var user = await _context.Users.FindAsync(userId);
             if (user == null)
             {
-                return NotFound("User profile not found.");
+                return NotFound();
             }
 
-            // Update allowed fields
             user.Username = updatedUserDto.Username;
             user.Email = updatedUserDto.Email;
 
@@ -65,6 +64,35 @@ namespace Api_proj.Controllers
             await _context.SaveChangesAsync();
 
             return Ok(new { message = "Profile updated successfully!" });
+        }
+
+        // GET: api/users
+        [HttpGet]
+        public async Task<ActionResult<IEnumerable<User>>> GetUsers()
+        {
+            return await _context.Users.ToListAsync();
+        }
+
+        // GET: api/users/5
+        [HttpGet("{id}")]
+        public async Task<ActionResult<User>> GetUser(int id)
+        {
+            var user = await _context.Users.FindAsync(id);
+            if (user == null) return NotFound();
+            return user;
+        }
+
+        // DELETE: api/users/5
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeleteUser(int id)
+        {
+            var user = await _context.Users.FindAsync(id);
+            if (user == null) return NotFound();
+
+            _context.Users.Remove(user);
+            await _context.SaveChangesAsync();
+
+            return NoContent();
         }
     }
 }
