@@ -3,6 +3,7 @@ using Api_proj.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace Api_proj.Controllers
 {
@@ -18,18 +19,44 @@ namespace Api_proj.Controllers
             _context = context;
         }
 
-        // GET: api/results
+        // GET: api/Results
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Result>>> GetResults()
         {
-            return await _context.Results.ToListAsync();
+            var userRole = User.FindFirstValue(ClaimTypes.Role);
+            var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            if (userRole == "Organiser")
+            {
+                return await _context.Results
+                    .Include(r => r.Enrolment)
+                        .ThenInclude(e => e.Event)
+                    .Include(r => r.Enrolment)
+                        .ThenInclude(e => e.User)
+                    .ToListAsync();
+            }
+            else
+            {
+                if (!int.TryParse(userIdString, out var userId)) return Unauthorized();
+
+                return await _context.Results
+                    .Include(r => r.Enrolment)
+                        .ThenInclude(e => e.Event)
+                    .Where(r => r.Enrolment.UserId == userId)
+                    .ToListAsync();
+            }
         }
 
-        // GET: api/results/5
+        // GET: api/Results/5
         [HttpGet("{id}")]
         public async Task<ActionResult<Result>> GetResult(int id)
         {
-            var result = await _context.Results.FindAsync(id);
+            var result = await _context.Results
+                .Include(r => r.Enrolment)
+                    .ThenInclude(e => e.Event)
+                .Include(r => r.Enrolment)
+                    .ThenInclude(e => e.User)
+                .FirstOrDefaultAsync(r => r.ResultId == id);
 
             if (result == null)
             {
@@ -39,7 +66,7 @@ namespace Api_proj.Controllers
             return result;
         }
 
-        // POST: api/results (Organiser only)
+        // POST: api/Results (Organiser only)
         [HttpPost]
         [Authorize(Roles = "Organiser")]
         public async Task<ActionResult<Result>> CreateResult(Result result)
@@ -47,18 +74,13 @@ namespace Api_proj.Controllers
             _context.Results.Add(result);
             await _context.SaveChangesAsync();
 
-            return CreatedAtAction(
-                nameof(GetResult),
-                new { id = result.ResultId },
-                result);
+            return Ok(new { message = "Result captured successfully!", resultId = result.ResultId });
         }
 
-        // PUT: api/results/5 (Organiser only)
+        // PUT: api/Results/5 (Organiser only)
         [HttpPut("{id}")]
         [Authorize(Roles = "Organiser")]
-        public async Task<IActionResult> UpdateResult(
-            int id,
-            Result result)
+        public async Task<IActionResult> UpdateResult(int id, Result result)
         {
             if (id != result.ResultId)
             {
@@ -66,19 +88,17 @@ namespace Api_proj.Controllers
             }
 
             _context.Entry(result).State = EntityState.Modified;
-
             await _context.SaveChangesAsync();
 
             return NoContent();
         }
 
-        // DELETE: api/results/5 (Organiser only)
+        // DELETE: api/Results/5 (Organiser only)
         [HttpDelete("{id}")]
         [Authorize(Roles = "Organiser")]
         public async Task<IActionResult> DeleteResult(int id)
         {
             var result = await _context.Results.FindAsync(id);
-
             if (result == null)
             {
                 return NotFound();

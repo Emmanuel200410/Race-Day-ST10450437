@@ -12,7 +12,7 @@ namespace Api_proj.Models
 
         public int EnrolmentId { get; set; }
         [ForeignKey("EnrolmentId")]
-        public Enrolment Enrolment { get; set; }
+        public Enrolment? Enrolment { get; set; }
 
         public TimeSpan FinishTime { get; set; }
         public int Position { get; set; }

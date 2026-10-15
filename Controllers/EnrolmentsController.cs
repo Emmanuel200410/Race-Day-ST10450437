@@ -3,6 +3,7 @@ using Api_proj.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace Api_proj.Controllers
 {
@@ -18,76 +19,55 @@ namespace Api_proj.Controllers
             _context = context;
         }
 
-        // GET: api/enrolments (Organiser only)
+        // GET: api/enrolments (Organisers view all; or participants view their own)
         [HttpGet]
-        [Authorize(Roles = "Organiser")]
         public async Task<ActionResult<IEnumerable<Enrolment>>> GetEnrolments()
         {
-            return await _context.Enrolments.ToListAsync();
-        }
+            var userRole = User.FindFirstValue(ClaimTypes.Role);
+            var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-        // GET: api/enrolments/5
-        [HttpGet("{id}")]
-        public async Task<ActionResult<Enrolment>> GetEnrolment(int id)
-        {
-            var enrolment = await _context.Enrolments.FindAsync(id);
-
-            if (enrolment == null)
+            if (userRole == "Organiser")
             {
-                return NotFound();
+                // Organisers can view all enrolments
+                return await _context.Enrolments
+                    .Include(e => e.Event)
+                    .Include(e => e.Category)
+                    .Include(e => e.User)
+                    .ToListAsync();
             }
+            else
+            {
+                // Participants can only view their own enrolments
+                if (!int.TryParse(userIdString, out var userId)) return Unauthorized();
 
-            return enrolment;
+                return await _context.Enrolments
+                    .Where(e => e.UserId == userId)
+                    .Include(e => e.Event)
+                    .Include(e => e.Category)
+                    .ToListAsync();
+            }
         }
 
-        // POST: api/enrolments (Participant only)
+        // POST: api/enrolments (Participants enter an event by selecting a category)
         [HttpPost]
         [Authorize(Roles = "Participant")]
-        public async Task<ActionResult<Enrolment>> CreateEnrolment(
-            Enrolment enrolment)
+        public async Task<ActionResult<Enrolment>> CreateEnrolment(Enrolment enrolment)
         {
+            var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!int.TryParse(userIdString, out var userId))
+            {
+                return Unauthorized();
+            }
+
+            // Automatically assign the logged-in user's ID
+            enrolment.UserId = userId;
+            enrolment.EnrolmentDate = DateTime.UtcNow;
+            enrolment.Status = "Confirmed";
+
             _context.Enrolments.Add(enrolment);
             await _context.SaveChangesAsync();
 
-            return CreatedAtAction(
-                nameof(GetEnrolment),
-                new { id = enrolment.EnrolmentId },
-                enrolment);
-        }
-
-        // PUT: api/enrolments/5
-        [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateEnrolment(
-            int id,
-            Enrolment enrolment)
-        {
-            if (id != enrolment.EnrolmentId)
-            {
-                return BadRequest();
-            }
-
-            _context.Entry(enrolment).State = EntityState.Modified;
-
-            await _context.SaveChangesAsync();
-
-            return NoContent();
-        }
-
-        // DELETE: api/enrolments/5
-        [HttpDelete("{id}")]
-        public async Task<IActionResult> DeleteEnrolment(int id)
-        {
-            var enrolment = await _context.Enrolments.FindAsync(id);
-
-            if (enrolment == null)
-            {
-                return NotFound();
-            }
-
-            _context.Enrolments.Remove(enrolment);
-            await _context.SaveChangesAsync();
-
-            return NoContent();
+            return Ok(new { message = "Successfully enrolled in the event!", enrolmentId = enrolment.EnrolmentId });
         }
     }
 }

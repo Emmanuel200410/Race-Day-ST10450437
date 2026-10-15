@@ -1,10 +1,13 @@
 ﻿using Api_proj.Data;
 using Api_proj.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace Api_proj.Controllers
 {
+    [Authorize]
     [ApiController]
     [Route("api/[controller]")]
     public class UsersController : ControllerBase
@@ -16,73 +19,52 @@ namespace Api_proj.Controllers
             _context = context;
         }
 
-        // GET: api/users
-        [HttpGet]
-        public async Task<ActionResult<IEnumerable<User>>> GetUsers()
+        // GET: api/users/profile (View own profile)
+        [HttpGet("profile")]
+        public async Task<ActionResult<User>> GetMyProfile()
         {
-            return await _context.Users.ToListAsync();
-        }
+            var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userIdString) || !int.TryParse(userIdString, out var userId))
+            {
+                return Unauthorized("Invalid token or user ID.");
+            }
 
-        // GET: api/users/5
-        [HttpGet("{id}")]
-        public async Task<ActionResult<User>> GetUser(int id)
-        {
-            var user = await _context.Users.FindAsync(id);
+            var user = await _context.Users
+                .Include(u => u.Role)
+                .FirstOrDefaultAsync(u => u.UserId == userId);
 
             if (user == null)
             {
-                return NotFound();
+                return NotFound("User profile not found.");
             }
 
             return user;
         }
 
-        // POST: api/users
-        [HttpPost]
-        public async Task<ActionResult<User>> CreateUser(User user)
+        // PUT: api/users/profile (Update own profile)
+        [HttpPut("profile")]
+        public async Task<IActionResult> UpdateMyProfile(User updatedUserDto)
         {
-            _context.Users.Add(user);
-            await _context.SaveChangesAsync();
-
-            return CreatedAtAction(
-                nameof(GetUser),
-                new { id = user.UserId },
-                user);
-        }
-
-        // PUT: api/users/5
-        [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateUser(
-            int id,
-            User user)
-        {
-            if (id != user.UserId)
+            var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userIdString) || !int.TryParse(userIdString, out var userId))
             {
-                return BadRequest();
+                return Unauthorized("Invalid token or user ID.");
             }
 
-            _context.Entry(user).State = EntityState.Modified;
-
-            await _context.SaveChangesAsync();
-
-            return NoContent();
-        }
-
-        // DELETE: api/users/5
-        [HttpDelete("{id}")]
-        public async Task<IActionResult> DeleteUser(int id)
-        {
-            var user = await _context.Users.FindAsync(id);
-
+            var user = await _context.Users.FindAsync(userId);
             if (user == null)
             {
-                return NotFound();
+                return NotFound("User profile not found.");
             }
 
-            _context.Users.Remove(user);
+            // Update allowed fields
+            user.Username = updatedUserDto.Username;
+            user.Email = updatedUserDto.Email;
+
+            _context.Entry(user).State = EntityState.Modified;
             await _context.SaveChangesAsync();
 
-            return NoContent();
+            return Ok(new { message = "Profile updated successfully!" });
         }
     }
 }
