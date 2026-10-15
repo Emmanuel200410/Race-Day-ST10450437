@@ -1,4 +1,5 @@
 ﻿using Api_proj.Data;
+using Api_proj.DTOs;
 using Api_proj.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -43,7 +44,7 @@ namespace Api_proj.Controllers
 
         // PUT: api/users/profile
         [HttpPut("profile")]
-        public async Task<IActionResult> UpdateMyProfile(User updatedUserDto)
+        public async Task<IActionResult> UpdateMyProfile([FromBody] UserProfileDto updatedUserDto)
         {
             var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrEmpty(userIdString) || !int.TryParse(userIdString, out var userId))
