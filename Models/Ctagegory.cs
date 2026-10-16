@@ -14,7 +14,7 @@ namespace Api_proj.Models
         public string CategoryName { get; set; } = string.Empty;
 
         [Column(TypeName = "decimal(18,2)]")]
-        public decimal EntryFee { get; set; }
+        public decimal EntryFee { get; set; }//
 
         [Required]
         public int EventId { get; set; }
