@@ -14,7 +14,7 @@ namespace Api_proj.Data
         public DbSet<User> Users { get; set; }
         public DbSet<Event> Events { get; set; }
         public DbSet<Category> Categories { get; set; }
-        public DbSet<RouteInformation> RouteInformation { get; set; }
+        public DbSet<RouteInformation> RouteInformation { get; set; }//
         public DbSet<Enrolment> Enrolments { get; set; }
         public DbSet<Result> Results { get; set; }
 
