@@ -71,7 +71,7 @@ namespace Api_proj.Controllers
             if (verificationResult == PasswordVerificationResult.Failed)
             {
                 return Unauthorized("Invalid email or password.");
-            }
+            }//
 
             var claims = new List<Claim>
             {
