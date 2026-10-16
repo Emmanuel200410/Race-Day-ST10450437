@@ -9,7 +9,7 @@ namespace Api_proj.Models
         [Key]
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
         public int CategoryId { get; set; }
-
+        //
         [Required]
         public string CategoryName { get; set; } = string.Empty;
 
