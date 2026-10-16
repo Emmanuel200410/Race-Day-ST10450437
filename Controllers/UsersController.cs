@@ -66,7 +66,7 @@ namespace Api_proj.Controllers
 
             return Ok(new { message = "Profile updated successfully!" });
         }
-
+        //
         // GET: api/users
         [HttpGet]
         public async Task<ActionResult<IEnumerable<User>>> GetUsers()
