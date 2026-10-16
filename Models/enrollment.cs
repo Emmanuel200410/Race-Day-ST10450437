@@ -20,7 +20,7 @@ namespace Api_proj.Models
         public virtual User? User { get; set; }
 
         [Required]
-        public int EventId { get; set; }
+        public int EventId { get; set; }//
 
         [ForeignKey("EventId")]
         [JsonIgnore]
