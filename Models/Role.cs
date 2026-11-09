@@ -1,6 +1,8 @@
-﻿using System.Collections.Generic;
+﻿
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Text.Json.Serialization;
 
 namespace Api_proj.Models
 {
@@ -13,6 +15,7 @@ namespace Api_proj.Models
         [Required]
         public string RoleName { get; set; }
 
+        [JsonIgnore]
         public ICollection<User> Users { get; set; }
     }
 }

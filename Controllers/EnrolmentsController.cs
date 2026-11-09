@@ -1,4 +1,5 @@
-﻿using Api_proj.Data;
+﻿
+using Api_proj.Data;
 using Api_proj.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -19,55 +20,112 @@ namespace Api_proj.Controllers
             _context = context;
         }
 
-        // GET: api/enrolments (Organisers view all; or participants view their own)
+        // GET: api/enrolments
+        // Organisers see enrolments for their own events.
+        // Participants see only their own enrolments.
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Enrolment>>> GetEnrolments()
         {
-            var userRole = User.FindFirstValue(ClaimTypes.Role);
-            var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var userIdString = User.FindFirstValue(
+                ClaimTypes.NameIdentifier
+            );
 
-            if (userRole == "Organiser")
+            if (!int.TryParse(userIdString, out int userId))
+                return Unauthorized();
+
+            var query = _context.Enrolments
+                .AsNoTracking()
+                .Include(e => e.Event)
+                .Include(e => e.Category)
+                .Include(e => e.User)
+                .AsQueryable();
+
+            if (User.IsInRole("Organiser"))
             {
-                // Organisers can view all enrolments
-                return await _context.Enrolments
-                    .Include(e => e.Event)
-                    .Include(e => e.Category)
-                    .Include(e => e.User)
-                    .ToListAsync();
+                query = query.Where(e =>
+                    e.Event != null &&
+                    e.Event.OrganiserId == userId
+                );
+            }
+            else if (User.IsInRole("Participant"))
+            {
+                query = query.Where(e => e.UserId == userId);
             }
             else
             {
-                // Participants can only view their own enrolments
-                if (!int.TryParse(userIdString, out var userId)) return Unauthorized();
-
-                return await _context.Enrolments
-                    .Where(e => e.UserId == userId)
-                    .Include(e => e.Event)
-                    .Include(e => e.Category)
-                    .ToListAsync();
+                return Forbid();
             }
+
+            return await query.ToListAsync();
         }
 
-        // POST: api/enrolments (Participants enter an event by selecting a category)
+        // POST: api/enrolments
+        // Participants enrol in an event using a selected category.
         [HttpPost]
         [Authorize(Roles = "Participant")]
-        public async Task<ActionResult<Enrolment>> CreateEnrolment(Enrolment enrolment)
+        public async Task<ActionResult<Enrolment>> CreateEnrolment(
+            Enrolment enrolment)
         {
-            var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (!int.TryParse(userIdString, out var userId))
-            {
+            var userIdString = User.FindFirstValue(
+                ClaimTypes.NameIdentifier
+            );
+
+            if (!int.TryParse(userIdString, out int userId))
                 return Unauthorized();
+
+            // Check that the event exists.
+            var eventItem = await _context.Events
+                .FirstOrDefaultAsync(e => e.EventId == enrolment.EventId);
+
+            if (eventItem == null)
+                return NotFound("Event not found.");
+
+            // Check that the category exists and belongs to this event.
+            var category = await _context.Categories
+                .FirstOrDefaultAsync(c =>
+                    c.CategoryId == enrolment.CategoryId &&
+                    c.EventId == enrolment.EventId
+                );
+
+            if (category == null)
+            {
+                return BadRequest(
+                    "The selected category does not belong to this event."
+                );
             }
 
-            // Automatically assign the logged-in user's ID
+            // Prevent the same participant from enrolling twice.
+            bool alreadyEnrolled = await _context.Enrolments.AnyAsync(e =>
+                e.UserId == userId &&
+                e.EventId == enrolment.EventId
+            );
+
+            if (alreadyEnrolled)
+            {
+                return BadRequest(
+                    "You are already enrolled in this event."
+                );
+            }
+
+            // Assign the logged-in participant.
+            enrolment.EnrolmentId = 0;
             enrolment.UserId = userId;
             enrolment.EnrolmentDate = DateTime.UtcNow;
             enrolment.Status = "Confirmed";
 
+            enrolment.Event = null;
+            enrolment.Category = null;
+            enrolment.User = null;
+
             _context.Enrolments.Add(enrolment);
+
             await _context.SaveChangesAsync();
 
-            return Ok(new { message = "Successfully enrolled in the event!", enrolmentId = enrolment.EnrolmentId });
+            return Ok(new
+            {
+                message = "Successfully enrolled in the event!",
+                enrolmentId = enrolment.EnrolmentId
+            });
         }
     }
 }

@@ -1,4 +1,5 @@
-﻿using Api_proj.Data;
+﻿
+using Api_proj.Data;
 using Api_proj.DTOs;
 using Api_proj.Models;
 using Microsoft.AspNetCore.Authentication;
@@ -22,6 +23,7 @@ namespace Api_proj.Controllers
             _context = context;
         }
 
+        // REGISTER
         [HttpPost("register")]
         public async Task<IActionResult> Register(RegisterDto dto)
         {
@@ -30,31 +32,38 @@ namespace Api_proj.Controllers
                 return BadRequest("Email is already registered.");
             }
 
-            // Look up the role in the database using the mandatory string input
             var role = await _context.Roles
-                .FirstOrDefaultAsync(r => r.RoleName.ToLower() == dto.RoleName.ToLower());
+                .FirstOrDefaultAsync(r =>
+                    r.RoleName.ToLower() == dto.RoleName.ToLower());
 
             if (role == null)
             {
-                return BadRequest("Invalid or missing role specified. You must provide a valid 'RoleName' such as 'Organiser' or 'Participant'.");
+                return BadRequest("Invalid or missing role specified.");
             }
 
             var user = new User
             {
                 Username = dto.Username,
                 Email = dto.Email,
-                RoleId = role.RoleId // Dynamically maps the string name to the database RoleId
+                RoleId = role.RoleId
             };
 
-            // Securely hash the password
-            user.PasswordHash = _passwordHasher.HashPassword(user, dto.Password);
+            user.PasswordHash = _passwordHasher.HashPassword(
+                user,
+                dto.Password
+            );
 
             _context.Users.Add(user);
+
             await _context.SaveChangesAsync();
 
-            return Ok(new { message = "User registered successfully!" });
+            return Ok(new
+            {
+                message = "User registered successfully!"
+            });
         }
 
+        // LOGIN
         [HttpPost("login")]
         public async Task<IActionResult> Login(LoginDto dto)
         {
@@ -67,32 +76,73 @@ namespace Api_proj.Controllers
                 return Unauthorized("Invalid email or password.");
             }
 
-            var verificationResult = _passwordHasher.VerifyHashedPassword(user, user.PasswordHash, dto.Password);
+            var verificationResult = _passwordHasher.VerifyHashedPassword(
+                user,
+                user.PasswordHash,
+                dto.Password
+            );
+
             if (verificationResult == PasswordVerificationResult.Failed)
             {
                 return Unauthorized("Invalid email or password.");
-            }//
+            }
 
             var claims = new List<Claim>
             {
-                new Claim(ClaimTypes.NameIdentifier, user.UserId.ToString()),
-                new Claim(ClaimTypes.Name, user.Username),
-                new Claim(ClaimTypes.Email, user.Email),
-                new Claim(ClaimTypes.Role, user.Role?.RoleName ?? "Participant")
+                new Claim(
+                    ClaimTypes.NameIdentifier,
+                    user.UserId.ToString()
+                ),
+
+                new Claim(
+                    ClaimTypes.Name,
+                    user.Username
+                ),
+
+                new Claim(
+                    ClaimTypes.Email,
+                    user.Email
+                ),
+
+                new Claim(
+                    ClaimTypes.Role,
+                    user.Role?.RoleName ?? "Participant"
+                )
             };
 
-            var claimsIdentity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+            var claimsIdentity = new ClaimsIdentity(
+                claims,
+                CookieAuthenticationDefaults.AuthenticationScheme
+            );
 
-            await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(claimsIdentity));
+            var principal = new ClaimsPrincipal(claimsIdentity);
 
-            return Ok(new { message = "Logged in successfully", role = user.Role?.RoleName });
+            await HttpContext.SignInAsync(
+                CookieAuthenticationDefaults.AuthenticationScheme,
+                principal
+            );
+
+            return Ok(new
+            {
+                message = "Logged in successfully",
+                role = user.Role?.RoleName,
+                userId = user.UserId,
+                username = user.Username
+            });
         }
 
+        // LOGOUT
         [HttpPost("logout")]
         public async Task<IActionResult> Logout()
         {
-            await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
-            return Ok(new { message = "Logged out successfully" });
+            await HttpContext.SignOutAsync(
+                CookieAuthenticationDefaults.AuthenticationScheme
+            );
+
+            return Ok(new
+            {
+                message = "Logged out successfully"
+            });
         }
     }
 }
